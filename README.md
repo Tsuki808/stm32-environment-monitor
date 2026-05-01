@@ -13,6 +13,7 @@
 - 报警等级 L1-L3，支持按键手动升降级和 2 秒自动升级
 - 串口协议带 XOR 校验，降低误帧对上位机显示的影响
 - 网页地面站，支持实时曲线、事件日志、阈值写入、CSV 导出和演示模式
+- DeepSeek AI 助手，支持主动分析遥测状态和自然语言问答
 
 ## 目录
 
@@ -71,6 +72,15 @@ pip install -r requirements.txt
 ```powershell
 python src/visualizer.py
 ```
+
+如果需要连接真实 DeepSeek，在启动前设置环境变量。密钥只保存在本机环境变量中，不会写入网页或仓库：
+
+```powershell
+$env:DEEPSEEK_API_KEY="sk-your-key"
+python src/visualizer.py
+```
+
+网页 AI 面板默认调用本地代理 `/api/deepseek`。未配置密钥时，面板仍可使用本地规则诊断，适合课堂演示或无网络环境。
 
 也可以手动启动静态服务器：
 
