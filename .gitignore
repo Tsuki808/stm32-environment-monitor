@@ -17,6 +17,7 @@ venv/
 Keil工程/Objects/
 Keil工程/Listings/
 Keil工程/DebugConfig/
+Keil工程/RTE/
 Keil工程/*.uvguix.*
 
 # Proteus generated workspace and backups
