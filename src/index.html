@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070a12">
+  <title>STM32 environmental monitor</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#dashboard">跳转到主控台</a>
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="grid-noise" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <section class="brand" aria-labelledby="app-title">
+      <span class="brand-mark" aria-hidden="true">μ</span>
+      <div>
+        <p class="eyebrow">Proteus + STM32F103C6</p>
+        <h1 id="app-title">STM32 environmental monitor</h1>
+      </div>
+    </section>
+
+    <section class="top-actions" aria-label="连接和数据操作">
+      <div class="link-pill" id="link-pill" aria-live="polite">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span id="link-text">离线</span>
+      </div>
+      <button class="btn btn-ghost" id="demo-btn" type="button">启动演示</button>
+      <button class="btn btn-primary" id="connect-btn" type="button">连接串口</button>
+      <button class="btn btn-ghost" id="export-btn" type="button">导出 CSV</button>
+    </section>
+  </header>
+
+  <main id="dashboard" class="dashboard" tabindex="-1">
+    <section class="hero-panel glass-panel" aria-labelledby="overview-title">
+      <div class="hero-copy">
+        <p class="eyebrow">Serial telemetry</p>
+        <h2 id="overview-title">环境数据、报警等级和事件日志集中显示</h2>
+        <p class="hero-text">页面通过浏览器串口读取 STM32 遥测帧，解析 <span translate="no">@ENV</span> / <span translate="no">@CFG</span> / <span translate="no">@LOG</span> 数据。没有硬件时可使用演示模式检查界面和曲线。</p>
+      </div>
+      <div class="system-orb" aria-label="系统状态指示">
+        <div class="orb-ring" aria-hidden="true"></div>
+        <div class="orb-core" id="orb-core"></div>
+        <strong id="state-word">OFFLINE</strong>
+        <span id="level-word">LEVEL --</span>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="实时传感器数据">
+      <article class="metric-card accent-cyan">
+        <div class="metric-top"><span>Light</span><span>mV</span></div>
+        <strong id="light-value">--</strong>
+        <p>光照通道</p>
+      </article>
+      <article class="metric-card accent-red">
+        <div class="metric-top"><span>Temp</span><span>°C</span></div>
+        <strong id="temp-value">--</strong>
+        <p>DHT11 温度</p>
+      </article>
+      <article class="metric-card accent-blue">
+        <div class="metric-top"><span>Humidity</span><span>%</span></div>
+        <strong id="humi-value">--</strong>
+        <p>DHT11 湿度</p>
+      </article>
+      <article class="metric-card accent-green">
+        <div class="metric-top"><span>Gas</span><span>mV</span></div>
+        <strong id="gas-value">--</strong>
+        <p>气体模拟量</p>
+      </article>
+    </section>
+
+    <section class="chart-panel glass-panel" aria-labelledby="chart-title">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Telemetry</p>
+          <h2 id="chart-title">四通道实时趋势</h2>
+        </div>
+        <div class="stats-strip" aria-label="链路统计">
+          <span>RX <b id="rx-count">0</b></span>
+          <span>CRC <b id="crc-count">0</b></span>
+          <span>DROP <b id="drop-count">0</b></span>
+        </div>
+      </div>
+      <canvas id="telemetry-canvas" width="1200" height="620" aria-label="光照、温度、湿度和气体实时曲线"></canvas>
+    </section>
+
+    <aside class="side-panel" aria-label="系统状态和控制">
+      <section class="glass-panel compact-panel" aria-labelledby="status-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">System state</p>
+            <h2 id="status-title">状态总览</h2>
+          </div>
+        </div>
+        <dl class="status-list">
+          <div><dt>模式</dt><dd id="mode-text">--</dd></div>
+          <div><dt>来源</dt><dd id="src-text">--</dd></div>
+          <div><dt>MCU 时间</dt><dd id="uptime-text">-- s</dd></div>
+          <div><dt>自动升级</dt><dd id="auto-text">--</dd></div>
+        </dl>
+      </section>
+
+      <section class="glass-panel compact-panel" aria-labelledby="command-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Commands</p>
+            <h2 id="command-title">远程指令</h2>
+          </div>
+        </div>
+        <form class="command-form" id="config-form">
+          <label for="cfg-key">阈值项</label>
+          <select id="cfg-key" name="cfg-key">
+            <option value="LLA">LLA</option>
+            <option value="LHA" selected>LHA</option>
+            <option value="THA">THA</option>
+            <option value="GHA">GHA</option>
+            <option value="UP">UP</option>
+            <option value="BZ">BZ</option>
+          </select>
+          <label for="cfg-value">写入值</label>
+          <input id="cfg-value" name="cfg-value" type="number" inputmode="numeric" autocomplete="off" value="2300">
+          <button class="btn btn-primary full" type="submit">写入阈值</button>
+        </form>
+        <form class="manual-form" id="manual-form">
+          <label for="manual-command">手动命令</label>
+          <div class="inline-control">
+            <input id="manual-command" name="manual-command" type="text" autocomplete="off" spellcheck="false" value="STAT?">
+            <button class="btn btn-ghost" type="submit">发送</button>
+          </div>
+        </form>
+        <button class="btn btn-danger full" id="reset-btn" type="button">发送 RESET</button>
+      </section>
+
+      <section class="glass-panel compact-panel" aria-labelledby="diagnosis-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Diagnosis</p>
+            <h2 id="diagnosis-title">本地诊断</h2>
+          </div>
+        </div>
+        <p class="diagnosis" id="diagnosis-text" aria-live="polite">等待遥测数据。系统将基于状态、报警源和阈值生成诊断摘要。</p>
+      </section>
+    </aside>
+
+    <section class="terminal-panel glass-panel" aria-labelledby="terminal-title">
+      <div class="panel-head tight">
+        <div>
+          <p class="eyebrow">Console</p>
+          <h2 id="terminal-title">事件终端</h2>
+        </div>
+        <button class="btn btn-ghost small" id="clear-log-btn" type="button">清空日志</button>
+      </div>
+      <pre id="terminal-log" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <dialog id="serial-help">
+    <h2>浏览器串口说明</h2>
+    <p>Web Serial API 需要 Chrome 或 Edge，并且页面通常应通过 <span translate="no">http://localhost</span> 打开。若直接双击 HTML 无法连接串口，请在 <span translate="no">src</span> 目录运行本地服务器。</p>
+    <form method="dialog"><button class="btn btn-primary" type="submit">知道了</button></form>
+  </dialog>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
