@@ -10,6 +10,7 @@ const COLORS = {
   grid: "rgba(148, 163, 184, 0.14)",
   bg: "#050914"
 };
+const AI_SYSTEM_PROMPT = "你是 STM32 环境监测地面站的 DeepSeek 助手。回答必须具体、简短、可执行，优先基于页面提供的遥测、报警源、CRC 和丢帧统计，不要编造未提供的硬件事实。";
 
 const el = {
   linkPill: document.querySelector("#link-pill"),
@@ -39,6 +40,14 @@ const el = {
   uptimeText: document.querySelector("#uptime-text"),
   autoText: document.querySelector("#auto-text"),
   diagnosisText: document.querySelector("#diagnosis-text"),
+  aiStatus: document.querySelector("#ai-status"),
+  aiStatusText: document.querySelector("#ai-status-text"),
+  aiEndpoint: document.querySelector("#ai-endpoint"),
+  aiModel: document.querySelector("#ai-model"),
+  aiAnalyzeBtn: document.querySelector("#ai-analyze-btn"),
+  aiChatLog: document.querySelector("#ai-chat-log"),
+  aiForm: document.querySelector("#ai-form"),
+  aiInput: document.querySelector("#ai-input"),
   terminalLog: document.querySelector("#terminal-log"),
   canvas: document.querySelector("#telemetry-canvas"),
   serialHelp: document.querySelector("#serial-help")
@@ -57,7 +66,8 @@ const state = {
   lastState: "OFFLINE",
   alarmStart: 0,
   history: [],
-  logs: []
+  logs: [],
+  aiMessages: []
 };
 
 const ctx = el.canvas.getContext("2d");
@@ -172,6 +182,117 @@ function updateDiagnosis(row) {
   if (source.includes("ADC")) parts.push("ADC 异常：检查 PA5/PA7 输入、电源和参考电压。");
 
   el.diagnosisText.textContent = parts.length ? parts.join(" ") : "已收到遥测，但状态字段不足以形成诊断。";
+}
+
+function setAiStatus(mode, text) {
+  el.aiStatus.classList.toggle("ready", mode === "ready");
+  el.aiStatus.classList.toggle("busy", mode === "busy");
+  el.aiStatus.classList.toggle("error", mode === "error");
+  el.aiStatusText.textContent = text;
+}
+
+function appendAiMessage(role, content, local = false) {
+  state.aiMessages.push({ role, content, local });
+  if (state.aiMessages.length > 18) state.aiMessages.shift();
+  renderAiMessages();
+}
+
+function renderAiMessages() {
+  el.aiChatLog.textContent = "";
+  for (const message of state.aiMessages) {
+    const item = document.createElement("div");
+    item.className = `ai-message ${message.role}${message.local ? " local" : ""}`;
+    const label = document.createElement("strong");
+    label.textContent = message.role === "user" ? "YOU" : message.local ? "LOCAL AI" : "DEEPSEEK";
+    const body = document.createElement("span");
+    body.textContent = message.content;
+    item.append(label, body);
+    el.aiChatLog.appendChild(item);
+  }
+  el.aiChatLog.scrollTop = el.aiChatLog.scrollHeight;
+}
+
+function telemetryContext() {
+  const latest = state.history[state.history.length - 1];
+  if (!latest) {
+    return [
+      "当前没有收到 STM32 遥测。",
+      `串口状态：${state.connected ? "已连接" : state.demo ? "演示模式" : "未连接"}`,
+      `链路统计：RX=${state.rx}, CRC=${state.crc}, DROP=${state.drop}`
+    ].join("\n");
+  }
+
+  const recent = state.history.slice(-12);
+  const avg = (key) => recent.reduce((sum, row) => sum + Number(row[key] || 0), 0) / Math.max(1, recent.length);
+  return [
+    `最新状态：${latest.state}, 报警等级 L${latest.level}, 来源 ${latest.src}`,
+    `最新值：light=${formatNumber(latest.light)}mV, temp=${formatNumber(latest.temp, 1)}°C, humi=${formatNumber(latest.humi, 1)}%, gas=${formatNumber(latest.gas)}mV`,
+    `近 ${recent.length} 帧均值：light=${formatNumber(avg("light"))}mV, temp=${formatNumber(avg("temp"), 1)}°C, humi=${formatNumber(avg("humi"), 1)}%, gas=${formatNumber(avg("gas"))}mV`,
+    `链路统计：RX=${state.rx}, CRC=${state.crc}, DROP=${state.drop}`,
+    `本地诊断：${el.diagnosisText.textContent}`
+  ].join("\n");
+}
+
+function localAiReply(question) {
+  const latest = state.history[state.history.length - 1];
+  const lead = "DeepSeek 代理暂未返回结果，以下为本地规则诊断。";
+  if (!latest) {
+    return `${lead}\n\n当前没有 STM32 遥测。可以先启动 Proteus 仿真或页面演示模式；若要连接真实 DeepSeek，请在启动本地服务器前设置 DEEPSEEK_API_KEY。\n\n你的问题：${question}`;
+  }
+  const actions = [];
+  if (latest.state === "NORMAL") actions.push("系统状态正常，重点观察光照和气体趋势是否持续靠近阈值。再导出 CSV 可作为报告证据。");
+  if (latest.state === "WARN") actions.push("系统已预警，建议连续观察 10-20 帧，并核对对应通道阈值配置。若趋势继续上升，应准备降低实验刺激源或调整阈值。 ");
+  if (latest.state === "ALARM") actions.push(`系统正在报警，优先处理 ${latest.src || "报警源"}，确认传感器供电、分压输入、DHT11 上拉和 ADC 参考电压。`);
+  if (String(latest.src).includes("LIGHT")) actions.push("光照异常时检查 LDR 分压电阻、遮光条件和 ADC 输入脚。 ");
+  if (String(latest.src).includes("GAS")) actions.push("气体通道异常时检查模拟量输入、电位器/MQ 模块供电和地线共地。 ");
+  if (String(latest.src).includes("DHT")) actions.push("DHT11 异常时检查数据线、上拉电阻和采样时序。 ");
+  if (state.crc || state.drop) actions.push("链路存在 CRC 或丢帧计数，建议先确认波特率 115200 8N1、串口线和 Proteus COMPIM 映射。 ");
+  return `${lead}\n\n${telemetryContext()}\n\n建议：${actions.join(" ") || "当前字段不足，先确认 @ENV 帧字段完整。"}`;
+}
+
+async function requestAi(question, showUserMessage = true) {
+  const clean = question.trim();
+  if (!clean) return;
+  if (el.aiAnalyzeBtn.disabled) return;
+  if (showUserMessage) appendAiMessage("user", clean);
+  setAiStatus("busy", "AI 分析中");
+  el.aiAnalyzeBtn.disabled = true;
+
+  const endpoint = el.aiEndpoint.value.trim() || "/api/deepseek";
+  const model = el.aiModel.value.trim() || "deepseek-chat";
+  const messages = [
+    { role: "system", content: AI_SYSTEM_PROMPT },
+    { role: "user", content: `${clean}\n\n页面遥测上下文：\n${telemetryContext()}` }
+  ];
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature: 0.2, max_tokens: 700 })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error?.message || data.message || `HTTP ${response.status}`);
+    const local = data.local === true;
+    const serverAnswer = data.choices?.[0]?.message?.content || data.reply || "AI 已响应，但返回内容为空。";
+    const answer = local ? `${serverAnswer}\n\n${localAiReply(clean)}` : serverAnswer;
+    appendAiMessage("assistant", answer, local);
+    setAiStatus("ready", local ? "本地 AI 就绪" : "DeepSeek 在线");
+    log(local ? "AI 使用本地规则完成分析" : "DeepSeek 已完成分析");
+  } catch (error) {
+    appendAiMessage("assistant", localAiReply(clean), true);
+    setAiStatus("ready", "本地 AI 就绪");
+    log(`DeepSeek 请求失败，已启用本地诊断：${error.message}`, "error");
+  } finally {
+    el.aiAnalyzeBtn.disabled = false;
+  }
+}
+
+function proactiveAnalysisPrompt() {
+  return [
+    "请主动分析当前 STM32 环境监测系统状态。",
+    "要求：先判断是否有有效遥测；再指出风险等级、最可能的硬件或协议问题；最后给出 3 条可执行排查步骤。"
+  ].join("\n");
 }
 
 function parseEnv(line) {
@@ -500,7 +621,9 @@ el.connectBtn.addEventListener("click", () => {
 el.demoBtn.addEventListener("click", toggleDemo);
 el.exportBtn.addEventListener("click", exportCsv);
 el.clearLogBtn.addEventListener("click", () => { state.logs = []; el.terminalLog.textContent = ""; });
-el.resetBtn.addEventListener("click", () => sendCommand("RESET"));
+el.resetBtn.addEventListener("click", () => {
+  if (window.confirm("确认向 STM32 发送 RESET 并恢复默认配置？")) sendCommand("RESET");
+});
 
 el.configForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -512,6 +635,14 @@ el.manualForm.addEventListener("submit", (event) => {
   sendCommand(el.manualCommand.value);
 });
 
+el.aiAnalyzeBtn.addEventListener("click", () => requestAi(proactiveAnalysisPrompt(), false));
+
+el.aiForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  requestAi(el.aiInput.value);
+  el.aiInput.value = "";
+});
+
 window.addEventListener("resize", resizeCanvas, { passive: true });
 
 if (!window.isSecureContext || !("serial" in navigator)) {
@@ -520,4 +651,6 @@ if (!window.isSecureContext || !("serial" in navigator)) {
 
 setLink("offline", "离线");
 setSystemState("OFFLINE", "--", "NONE");
+setAiStatus("ready", "AI 就绪");
+appendAiMessage("assistant", "AI 助手已就绪。没有 STM32 数据时可以直接提问；收到遥测后点击主动分析可生成排查建议。", true);
 resizeCanvas();

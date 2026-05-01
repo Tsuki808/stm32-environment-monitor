@@ -141,6 +141,35 @@
         </div>
         <p class="diagnosis" id="diagnosis-text" aria-live="polite">等待遥测数据。系统将基于状态、报警源和阈值生成诊断摘要。</p>
       </section>
+
+      <section class="glass-panel compact-panel ai-panel" aria-labelledby="ai-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">DeepSeek AI</p>
+            <h2 id="ai-title">智能分析助手</h2>
+          </div>
+          <div class="ai-status ready" id="ai-status" aria-live="polite">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span id="ai-status-text">AI 就绪</span>
+          </div>
+        </div>
+        <p class="ai-note">可主动分析最新遥测，也可以在没有 STM32 数据时直接提问。默认通过本地代理连接 DeepSeek，不在网页中保存密钥。</p>
+        <div class="ai-config" aria-label="DeepSeek 连接配置">
+          <label for="ai-endpoint">接口</label>
+          <input id="ai-endpoint" name="ai-endpoint" type="text" spellcheck="false" autocomplete="off" value="/api/deepseek">
+          <label for="ai-model">模型</label>
+          <input id="ai-model" name="ai-model" type="text" spellcheck="false" autocomplete="off" value="deepseek-chat">
+        </div>
+        <button class="btn btn-primary full" id="ai-analyze-btn" type="button">主动分析</button>
+        <div class="ai-chat" id="ai-chat-log" aria-live="polite" aria-label="AI 对话记录"></div>
+        <form class="ai-form" id="ai-form">
+          <label for="ai-input">向 DeepSeek 提问</label>
+          <div class="inline-control">
+            <input id="ai-input" name="ai-input" type="text" autocomplete="off" placeholder="例如：当前报警风险怎么排查？…">
+            <button class="btn btn-ghost" type="submit">发送</button>
+          </div>
+        </form>
+      </section>
     </aside>
 
     <section class="terminal-panel glass-panel" aria-labelledby="terminal-title">
