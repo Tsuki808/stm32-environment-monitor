@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071016">
+  <title>STM32F103C8 地面站</title>
+  <link rel="stylesheet" href="./styles.css?v=locked-feed-20260531">
+</head>
+<body>
+  <a class="skip-link" href="#dashboard">跳转到主控台</a>
+
+  <header class="topbar">
+    <section class="brand" aria-labelledby="app-title">
+      <span class="brand-mark" aria-hidden="true">STM32</span>
+      <div>
+        <p class="eyebrow">Proteus ground station</p>
+        <h1 id="app-title">STM32F103C8 环境报警地面站</h1>
+        <p class="subtitle">USART1 115200 8N1 · LITE 单 ADC 通道 · 自动遥测流</p>
+      </div>
+    </section>
+
+    <section class="top-actions" aria-label="数据操作">
+      <div class="link-pill online" id="link-pill" aria-live="polite">
+        <span class="pulse-dot" aria-hidden="true"></span>
+        <span id="link-text">LINK ONLINE</span>
+      </div>
+      <button class="btn btn-ghost" id="export-btn" type="button">导出 CSV</button>
+    </section>
+  </header>
+
+  <main id="dashboard" class="dashboard" tabindex="-1">
+    <section class="overview-panel panel" aria-labelledby="overview-title">
+      <div>
+        <p class="eyebrow">Live telemetry</p>
+        <h2 id="overview-title">STM32F103 LITE 单通道遥测</h2>
+        <p class="panel-text">
+          地面站按当前固件协议显示 <code>@ENV</code>、<code>@EVT</code>、<code>@STAT</code>、<code>@CFG</code>、<code>@LOG</code>、<code>@ACK</code>、<code>@NACK</code> 帧。
+          当前硬件只保留 PA0 ADC 作为有效传感器，温度、湿度和气体通道显示为 N/A。
+        </p>
+      </div>
+      <div class="state-summary" aria-label="系统状态">
+        <strong id="state-word">ONLINE</strong>
+        <span id="level-word">LEVEL --</span>
+        <small id="risk-text">risk -- / 10</small>
+      </div>
+    </section>
+
+    <section class="metric-grid" aria-label="实时数据">
+      <article class="metric-card accent-cyan">
+        <div class="metric-top"><span>ADC / Light</span><span>mV</span></div>
+        <strong id="light-value">--</strong>
+        <p>PA0 ADC 电压，当前唯一有效传感器。</p>
+      </article>
+      <article class="metric-card is-disabled">
+        <div class="metric-top"><span>Temp</span><span>degC</span></div>
+        <strong id="temp-value">N/A</strong>
+        <p>当前电路未提供温度传感器。</p>
+      </article>
+      <article class="metric-card is-disabled">
+        <div class="metric-top"><span>Humidity</span><span>%</span></div>
+        <strong id="humi-value">N/A</strong>
+        <p>当前电路未提供湿度传感器。</p>
+      </article>
+      <article class="metric-card is-disabled">
+        <div class="metric-top"><span>Gas</span><span>mV</span></div>
+        <strong id="gas-value">N/A</strong>
+        <p>当前电路未提供气体通道。</p>
+      </article>
+    </section>
+
+    <section class="chart-panel panel" aria-labelledby="chart-title">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">ADC trend</p>
+          <h2 id="chart-title">PA0 电压趋势</h2>
+        </div>
+        <div class="stats-strip" aria-label="链路统计">
+          <span>RX <b id="rx-count">0</b></span>
+          <span>CRC <b id="crc-count">0</b></span>
+          <span>DROP <b id="drop-count">0</b></span>
+        </div>
+      </div>
+      <canvas id="telemetry-canvas" width="1100" height="520" aria-label="PA0 ADC 电压实时曲线"></canvas>
+    </section>
+
+    <aside class="side-panel" aria-label="系统状态和控制">
+      <section class="panel compact-panel" aria-labelledby="status-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Status</p>
+            <h2 id="status-title">固件状态</h2>
+          </div>
+        </div>
+        <dl class="status-list">
+          <div><dt>模式</dt><dd id="mode-text">--</dd></div>
+          <div><dt>报警源</dt><dd id="src-text">--</dd></div>
+          <div><dt>MCU 时间</dt><dd id="uptime-text">-- s</dd></div>
+          <div><dt>序号</dt><dd id="seq-text">--</dd></div>
+          <div><dt>原始 level</dt><dd id="raw-level-text">--</dd></div>
+          <div><dt>错误码</dt><dd id="err-text">--</dd></div>
+        </dl>
+      </section>
+
+      <section class="panel compact-panel" aria-labelledby="command-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Commands</p>
+            <h2 id="command-title">地面站命令</h2>
+          </div>
+        </div>
+        <form class="manual-form" id="manual-form">
+          <label for="manual-command">命令内容</label>
+          <div class="inline-control">
+            <input id="manual-command" name="manual-command" type="text" autocomplete="off" spellcheck="false" value="STAT?">
+            <button class="btn btn-primary" type="submit">发送</button>
+          </div>
+        </form>
+        <div class="quick-commands" id="quick-commands" aria-label="常用命令">
+          <button class="btn btn-ghost small" type="button" data-command="STAT?">STAT?</button>
+          <button class="btn btn-ghost small" type="button" data-command="CFG?">CFG?</button>
+          <button class="btn btn-ghost small" type="button" data-command="LOG?">LOG?</button>
+          <button class="btn btn-ghost small" type="button" data-command="CLRLOG">CLRLOG</button>
+          <button class="btn btn-danger small" type="button" data-command="RESET">RESET</button>
+        </div>
+        <p class="note">当前固件不支持 SET、SAVE、MODE 切换；相关命令返回 NACK。</p>
+      </section>
+
+      <section class="panel compact-panel" aria-labelledby="diagnosis-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Diagnosis</p>
+            <h2 id="diagnosis-title">本地诊断</h2>
+          </div>
+        </div>
+        <p class="diagnosis" id="diagnosis-text" aria-live="polite">正在接收遥测。</p>
+      </section>
+
+      <section class="panel compact-panel" aria-labelledby="ai-title">
+        <div class="panel-head tight">
+          <div>
+            <p class="eyebrow">Assistant</p>
+            <h2 id="ai-title">分析助手</h2>
+          </div>
+          <div class="ai-status ready" id="ai-status" aria-live="polite">
+            <span class="pulse-dot" aria-hidden="true"></span>
+            <span id="ai-status-text">本地就绪</span>
+          </div>
+        </div>
+        <button class="btn btn-primary full" id="ai-analyze-btn" type="button">分析当前遥测</button>
+        <div class="ai-chat" id="ai-chat-log" aria-live="polite" aria-label="分析记录"></div>
+      </section>
+    </aside>
+
+    <section class="terminal-panel panel" aria-labelledby="terminal-title">
+      <div class="panel-head tight">
+        <div>
+          <p class="eyebrow">Console</p>
+          <h2 id="terminal-title">协议终端</h2>
+        </div>
+        <button class="btn btn-ghost small" id="clear-log-btn" type="button">清空</button>
+      </div>
+      <pre id="terminal-log" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <script src="./app.js?v=locked-feed-20260531" defer></script>
+</body>
+</html>

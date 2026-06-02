@@ -1,38 +1,44 @@
-.env
-.env.*
-!.env.example
+# Keil MDK build artifacts
+keil/Objects/
+keil/Listings/
+keil/DebugConfig/
+keil/RTE/
+*.uvguix.*
+!*.uvguix.Administrator
+*.bak
+*.dep
+*.htm
+*.htc
+
+# Proteus simulation artifacts
+proteus/*.pdsprj.*.workspace
+proteus/*.log
+proteus/*.hex
+
+# IDE / OS generated files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
 
 # Python
 __pycache__/
-*.py[cod]
-.venv/
-venv/
+*.pyc
+*.pyo
+.env
 
-# Local editor/session files
-.vscode/
-.sisyphus/
-.specstory/
+# Node
+node_modules/
 
-# Keil generated output and user UI state
-Keil工程/Objects/
-Keil工程/Listings/
-Keil工程/DebugConfig/
-Keil工程/RTE/
-Keil工程/*.uvguix.*
-
-# Proteus generated workspace and backups
-proteus工程/*.workspace
-proteus工程/Project Backups/
-
-# Local reports, references and large attachments
-backup/
-参考/
-docs/
-《微控制器技术》课程期末考试报告要求.docx
-*.avi
-*.mp4
-
-# OS files
-Thumbs.db
-.DS_Store
-~$*
+# Build outputs
+*.o
+*.d
+*.lst
+*.map
+*.axf
+*.elf
+*.hex
+*.bin
